@@ -1,0 +1,9 @@
+private/
+tests/
+tools/
+.github/
+__pycache__/
+*.pem
+*.key
+*.bits
+.venv/

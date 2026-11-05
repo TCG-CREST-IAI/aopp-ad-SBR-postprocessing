@@ -1,0 +1,11 @@
+private/
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pem
+*.key
+*.bits
+.vercel/
+.pytest_cache/
+test-results/

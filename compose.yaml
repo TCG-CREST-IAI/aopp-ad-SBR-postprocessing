@@ -1,0 +1,13 @@
+services:
+  alice:
+    build: .
+    command: ["python", "alice.py", "--config", "/run/qkd/config.json"]
+    volumes: ["./private/alice:/run/qkd"]
+    ports: ["8443:8443"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+  bob:
+    build: .
+    command: ["python", "bob.py", "--config", "/run/qkd/config.json"]
+    volumes: ["./private/bob:/run/qkd"]
+    ports: ["8444:8444"]
+    extra_hosts: ["host.docker.internal:host-gateway"]

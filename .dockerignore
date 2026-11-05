@@ -1,0 +1,7 @@
+private
+.git
+.venv
+__pycache__
+*.pem
+*.key
+*.bits
