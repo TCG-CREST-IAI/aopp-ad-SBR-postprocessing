@@ -1,3 +1,80 @@
+# Operational pipeline repair â€” 6 November 2026
+
+The original project now includes **Alice-led AOPP â†’ manually selected AD â†’ symmetric blind information reconciliation**, with independently loaded inputs, genuine mTLS and durable layer checkpoints. See [REPAIR.md](REPAIR.md) for audit traceability, failure/retry behavior and remaining limits.
+
+**Purpose: synthetic validation of the repaired SNS-QKD post-processing path.** SNS-QKD is the confirmed upstream protocol. Real-key acceptance is deliberately gated until the input stage/alignment/bit convention, parameter-estimation metadata, operating envelope, composable security budget and privacy-amplification interface are supplied. Do not treat successful synthetic reconciliation as approval for processing real keys. A user-supplied `input_kind=synthetic` is an operator assertion, not a detector of the origin of a bitstring.
+
+## Start the repaired flow
+
+Use Python 3.12 and install the existing development requirements. From this project folder:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python tools/create_certs.py --out private
+python tools/pipeline_demo_inputs.py --private private
+```
+
+Provisioning and demo generation refuse to overwrite existing files. Use a new directory if `private` already contains credentials or data. Keep each endpoint's directory on that endpoint's host. The operator bundle is an administrative credential, not either party's private key. On Windows, restrict private directories using ACLs; on Linux use owner-only permissions. Never commit private directories or databases.
+
+In separate terminals, start Bob and Alice:
+
+```powershell
+python bob.py --config private/bob/config.json
+python alice.py --config private/alice/config.json
+```
+
+Each backend loads only its own `private/<role>/DATA.txt`. Configure `input_file` and `state_dir` in its local config to use other paths. `load_config` resolves these relative to that config file. Defaults put private durable state in `private/<role>/pipeline-state/`.
+
+Then start one workspace gateway per role, in separate terminals. Use a strong local workspace token of at least 24 characters. The token authorizes the operator; it does not replace mTLS between gateway/backends or between Alice and Bob.
+
+```powershell
+$env:OPERATOR_CONFIG=(Resolve-Path private/operator/config.json).Path
+$env:WORKSPACE_TOKEN=Read-Host 'Workspace access token (24+ characters)'
+$env:WORKSPACE_ROLE='alice'
+python workspace.py --port 8081
+```
+
+For Bob's gateway use `WORKSPACE_ROLE='bob'` and `--port 8082`. Open Alice at `http://127.0.0.1:8081` and Bob at `http://127.0.0.1:8082`. The gateway HTTP listeners are loopback-only. For a hosted frontend, use an authenticated HTTPS gateway and validate the actual TLS termination point; do not expose this local HTTP server as a public key service.
+
+1. On each workspace enter its token and the same fresh Run ID. **Connect / status** authenticates to that endpoint. A run initially shows NOT_LOADED.
+2. Optionally upload each endpoint's own synthetic DATA.txt. UTF-8, optional BOM, only 0/1 with whitespace; no labels/commas. Limit 1 MB / 200,000 bits. Upload replaces the endpoint input file, not a previously committed run checkpoint. **Load local input for this run** snapshots each endpoint's own file. An existing Run ID cannot be reused for different input; use a new ID.
+3. On Alice click **Run AOPP**. Alice generates nonoverlapping opposite-bit pairs; Bob returns 0=accepted / 1=rejected. Both retain the **first original bit** of each accepted pair in the same order. RKBP uses JSON two-element arrays and zero-based positions. PP is omitted; PP=2 is rejected.
+4. Inspect the actual committed AOPP length N. On **both** workspaces manually select b, then click **Agree b on this endpoint**. Require b â‰¥ 2, b â‰¤ N, N % b = 0. Invalid divisibility changes neither checkpoint; choose another b without rerunning AOPP. If an earlier valid proposal may already be pending at the peer, resolve that proposal before changing settings.
+5. On Alice click **Run AD**. One fresh random XOR mask bit is used per block. Bob accepts exactly constant differences (all-zero or all-one), and both retain their original first bit. No automatic divisor, padding, tail truncation or repeated AD construction is substituted. The implemented construction is one direct AD round.
+6. On Alice click **Run symmetric blind reconciliation**. Both services run the original SBI engine, with actual syndrome/disclosure/verification exchange. The final partial codeword uses extra known shortened positions; all AD output bits are retained on success. Every block must pass the 64-bit verification check before the final pipeline candidate can be committed.
+7. Both endpoints write their own accepted `<run_id>.bits` under `pipeline-state/`. Export only the redacted report from the browser. To remove a private checkpoint after use, invoke **Erase this endpoint's private checkpoint** on each side; saved accepted outputs and original DATA.txt are intentionally retained. Erase keeps a retired-ID tombstone and does not claim physical secure erasure.
+
+The workspaces display committed counts, actual redacted events and pending/error states. They do not compute exact real-key QBER by sharing keys, invent live traffic, or display private key strips. Status can be polled during SBI processing. Output length equality is not a claim of bit-value equality before verification.
+
+## CLI and verification
+
+`pipeline_control.py` provides the same operations through the operator's mTLS client without reading private inputs. Example:
+
+```powershell
+python pipeline_control.py prepare --config private/operator/config.json --party alice --run check01
+python pipeline_control.py prepare --config private/operator/config.json --party bob --run check01
+python pipeline_control.py aopp --config private/operator/config.json --party alice --run check01
+# Choose a valid b from the returned actual length, then select it on both sides.
+python pipeline_control.py select_ad --config private/operator/config.json --party alice --run check01 --b 2
+python pipeline_control.py select_ad --config private/operator/config.json --party bob --run check01 --b 2
+python pipeline_control.py ad --config private/operator/config.json --party alice --run check01
+python pipeline_control.py sbi --config private/operator/config.json --party alice --run check01
+python -m unittest discover -s tests -v
+node --check web/workspace.js
+```
+
+The repaired pipeline preserves committed SQLite state across backend restarts. Layer commits are retryable after acknowledgment loss, but simultaneous cross-server commits are impossible to guarantee under arbitrary network failure. A pending layer must be retried before advancing. Interrupted SBI restarts from AD with a fresh attempt, not from an unverified mid-block candidate. Final output publication uses an fsynced temporary file, then no-overwrite atomic rename on Windows or hard-link publication on POSIX; unsupported storage fails closed. Do not run multiple backend replicas against the same state directory. Protect checkpoint files/backups as private key material; storage is not application-encrypted.
+
+The default small LDPC pool, q_est=.02 and alpha=1 are **development defaults**, not parameters inferred for the user's SNS source. General AD b support does not imply the supplied paper's finite-key proof applies to every b. Its direct size-2 treatment and described repeated-size-2 extension must be distinguished from one larger direct block. Read the original limitations below and REPAIR.md before defining a real operating contract.
+
+## Legacy demonstration
+
+The historical `demo.py`, `dashboard.py`, original `web/index.html` and existing `/api` demo handler remain available for old synthetic demonstrations/tests. They centrally generate synthetic inputs and are **not the repaired operational workspace**. Use `workspace.py` for the new path. No public deployment was changed by the repair; the earlier QKD_Observatory Vercel apps are separate and are not evidence that these new backends have been deployed.
+
+---
+
+## Original demonstration documentation (historical)
+
 # QKD Reconciliation Lab
 
 A Python implementation of symmetric blind information reconciliation with separate Alice and Bob HTTPS services, mutual TLS, and a presentation dashboard.
@@ -79,7 +156,7 @@ printf '%s\n' "$DEMO_TOKEN"
 python demo.py
 ```
 
-Choose **Live servers · mTLS** in the dashboard and enter the operator token. Both servers must be running. The dashboard generates synthetic inputs, provisions each party through its certificate-authenticated administrative endpoint, asks Alice to run the protocol, and fetches summaries. It deletes the in-memory demonstration sessions afterwards. Bob retains a verified corrected block in his local output directory.
+Choose **Live servers Â· mTLS** in the dashboard and enter the operator token. Both servers must be running. The dashboard generates synthetic inputs, provisions each party through its certificate-authenticated administrative endpoint, asks Alice to run the protocol, and fetches summaries. It deletes the in-memory demonstration sessions afterwards. Bob retains a verified corrected block in his local output directory.
 
 The dashboard is bound to loopback by default. Its local browser connection is ordinary HTTP; the live operator-to-server and Alice-to-Bob connections are mTLS HTTPS. If you expose the dashboard beyond your own computer, place it behind an HTTPS/authenticated gateway. The operator token is required for live control. This token is not a substitute for mTLS on the party services.
 

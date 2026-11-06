@@ -14,7 +14,7 @@ def fingerprint(path):
 def load_config(path):
     path = Path(path).resolve()
     config = json.loads(path.read_text())
-    for key in ("ca", "cert", "key", "peer_cert", "operator_cert", "alice_cert", "bob_cert", "output_dir"):
+    for key in ("ca", "cert", "key", "peer_cert", "operator_cert", "alice_cert", "bob_cert", "output_dir", "input_file", "state_dir", "crl"):
         if key in config:
             config[key] = str((path.parent / config[key]).resolve())
     return config
@@ -28,12 +28,12 @@ class Client:
         self.host, self.port = parsed.hostname, parsed.port or 443
         self.expected = fingerprint(expected_cert)
         self.context = ssl.create_default_context(cafile=ca)
-        self.context.minimum_version = ssl.TLSVersion.TLSv1_2
+        self.context.minimum_version = ssl.TLSVersion.TLSv1_3
         self.context.load_cert_chain(cert, key)
         self.timeout = timeout
 
     def post(self, path, body):
-        if path not in ("/prepare", "/run", "/result", "/exchange", "/delete", "/health"):
+        if path not in ("/prepare", "/run", "/result", "/exchange", "/delete", "/health", "/pipeline"):
             raise ValueError("Unknown peer operation")
         connection = http.client.HTTPSConnection(self.host, self.port, context=self.context, timeout=self.timeout)
         try:

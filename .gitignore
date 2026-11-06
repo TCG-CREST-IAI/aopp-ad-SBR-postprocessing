@@ -9,3 +9,10 @@ __pycache__/
 .vercel/
 .pytest_cache/
 test-results/
+
+pipeline-state/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+DATA.txt

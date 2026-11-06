@@ -1,0 +1,31 @@
+# Repair contract and traceability — 6 November 2026
+
+This repair is in the original `Binary Symmertic Reconcillation` project. It does not replace that project with QKD_Observatory. The existing SBI decoder and original SBI service/tests are retained.
+
+| Audited requirement | Repair | Verification |
+|---|---|---|
+| Alice-led AOPP, first-bit retention | `stages.pairs_for/check_pairs/retain_pairs`; `Pipeline.layer/receive` | Hand-computed pairs/flags/mappings; disjoint opposite-bit proposals; PP=2 rejection |
+| Manual AD with no tails or auto selection | `validate_ad`, `mask_blocks`, `check_blocks`, `retain_blocks` | All-equal/all-opposite/mixed differences for b=2,3,4,5,8,16; invalid/prime/empty/short inputs |
+| Invalid b permits reselection without AOPP rerun | Persisted AOPP checkpoint, separate `select_ad` | 129 AOPP bits reject b=2, retain checkpoint after service reconstruction, accept b=3 |
+| Matching ordered positions and lengths | Version/length/settings proposals and digest of original retained positions in each summary | Expected original positions checked independently; peer summaries must match |
+| Independent input | Backend loads its own configured DATA.txt; gateway forced to one role | Pipeline prepare requests contain no raw key; per-role state and input paths |
+| Genuine mTLS | Original CA + certificate pins retained; TLS minimum raised to 1.3; handshake timeout added | Existing actual-transport positive/negative tests retained |
+| Crash/retry semantics | Durable SQLite layer checkpoints and pending commits; persisted proposal for stable retries | Lost commit acknowledgment retried without new AOPP pairing; checkpoint service reconstruction |
+| SBI correction and verification | Reuses original Party/BP protocol per block; final partial block uses extra known shortened positions | Full pipeline verifies equal test outputs; independent original BP/reference and verification tests retained |
+| No unverified final output | Native Bob writes deferred for pipeline attempts; accepted output written only at final checkpoint commit | Both saved endpoint outputs compared to independent expected result |
+| Cleanup | Phase drafts/flags/masked payloads removed after commit; native SBI block sessions removed after acceptance; final checkpoint drops key/map references | Successful checkpoint inspected; explicit erase preserves a retired-ID tombstone |
+| Minimal truthful UI | `workspace.py` + web/workspace.* | One-role controls, manual b, committed counts, pending commit/error state and actual redacted events; no synthetic animation or raw key preview |
+
+## Operational boundaries
+
+- **SNS-QKD is the supplied upstream protocol. Real-key acceptance remains explicitly gated.** Input stage, alignment, bit convention, decoy/parameter-estimation metadata, key-size/QBER envelope, failure allocation and downstream privacy-amplification contract are not yet supplied. `input_kind=synthetic` is an operator assertion, not a classifier that can distinguish real from artificial bits. Do not label real material synthetic to bypass this gate.
+- Development limits: UTF-8 0/1 with optional BOM/whitespace; 1..200,000 bits; 1 MB input file. Default SBI pool 96/192/384, q_est=.02 and alpha=1 are synthetic-validation defaults, not inferred SNS operating parameters. The code uses a direct single AD round of manually selected b; no finite-key proof for arbitrary b is claimed.
+- A checkpoint can be retried after a lost commit acknowledgment. **Simultaneous distributed commits are not promised.** Status exposes a pending local commit; retry that same layer before advancing. Already committed phases are idempotent locally. Old/out-of-order proposals and changed pending settings are rejected.
+- An interrupted SBI attempt restarts with a new random attempt ID from the committed AD checkpoint; it does not resume a native decoder mid-block. Earlier tentative candidates are discarded and native sessions retired when a new attempt begins. No final bit file is emitted for incomplete SBI. Exhaustive cross-host crash/retry behavior is not certified.
+- Each backend owns a SQLite file containing its current private checkpoint. Protect the directory with OS ACLs and disk encryption, exclude it from source control, and treat backups as secret material. SQLite FULL synchronous transactions and explicit connection closure are used. It is not encrypted by this application.
+- Protocol JSON is a wire representation. Payloads are stored only as needed inside the private durable checkpoint for retry, then dropped at acknowledged phase commit. This is intentionally distinct from deleting every state file after each message. It is not secure erasure of host memory or provider snapshots.
+- Final phase writes a local `.bits` output on each endpoint without overwriting different existing data. The final durable record omits raw key and position arrays. Original DATA.txt and accepted output files remain until an explicit operator retention policy removes them. `erase` removes checkpoint references and retains an ID tombstone; it does not claim physical secure erasure or delete original/accepted files.
+- Output publication uses an fsynced temporary file and no-overwrite atomic rename on Windows or a hard link on POSIX, before the durable final-state update. Unsupported filesystems fail closed; no unverified result is accepted. Intermediate attempts and stale attempt IDs are retired rather than silently replayed.
+- Original legacy `demo.py` and `dashboard.py` remain labelled synthetic demonstrations for existing tests/backward compatibility. They are not the operational workspace and must not be used for real keys. Their original best-effort cleanup behavior is not silently represented as repaired pipeline behavior.
+- CRL verification is supported for the server when a `crl` path is configured. Full CA renewal/revocation operations and hosted proxy termination still require an administrator contract and deployment validation. Do not infer information-theoretic authentication from mTLS.
+- The new workspace is prepared locally. No production deployment or public configuration is changed by this repair. The older QKD_Observatory deployments remain a separate artifact.
