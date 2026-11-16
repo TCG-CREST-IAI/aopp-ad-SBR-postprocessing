@@ -1,4 +1,4 @@
-# Operational pipeline repair â€” 6 November 2026
+# Operational pipeline 
 
 The original project now includes **Alice-led AOPP â†’ manually selected AD â†’ symmetric blind information reconciliation**, with independently loaded inputs, genuine mTLS and durable layer checkpoints. See [REPAIR.md](REPAIR.md) for audit traceability, failure/retry behavior and remaining limits.
 
